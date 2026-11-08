@@ -327,17 +327,33 @@ export async function resolveExistingThreadExecutionPlan(
     reasoningLevel,
   );
 
-  const supportsServiceTier =
-    deps.providerRegistry.get(thread.providerId)?.info.capabilities
-      .supportsServiceTier ?? true;
+  const provider = deps.providerRegistry.get(thread.providerId)?.info;
+  const supportedServiceTiers = new Set([
+    DEFAULT_SERVICE_TIER,
+    ...(provider?.capabilities.supportsServiceTier
+      ? (provider.serviceTiers?.map((tier) => tier.id) ?? ["fast"])
+      : []),
+  ]);
+  const requestedServiceTier = args.input.serviceTier?.value;
+  if (
+    requestedServiceTier !== undefined &&
+    !supportedServiceTiers.has(requestedServiceTier)
+  ) {
+    throw new ProviderCapabilityValidationError(
+      400,
+      "invalid_request",
+      `Provider ${thread.providerId} does not support ${requestedServiceTier} service tier. Supported service tiers: ${[...supportedServiceTiers].join(", ")}.`,
+    );
+  }
+  const inheritedServiceTiers = [
+    lastExecution?.serviceTier,
+    projectExecution?.serviceTier,
+  ].filter(
+    (tier): tier is ServiceTier =>
+      tier !== undefined && supportedServiceTiers.has(tier),
+  );
   const serviceTier = resolveFieldWithDefault<ServiceTier>(
-    supportsServiceTier
-      ? [
-          args.input.serviceTier?.value,
-          lastExecution?.serviceTier,
-          projectExecution?.serviceTier,
-        ]
-      : [args.input.serviceTier?.value],
+    [requestedServiceTier, ...inheritedServiceTiers],
     DEFAULT_SERVICE_TIER,
   );
 

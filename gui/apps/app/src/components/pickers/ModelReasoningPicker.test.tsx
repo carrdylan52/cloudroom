@@ -281,8 +281,12 @@ describe("ModelReasoningPicker", () => {
     const onServiceTierChange = vi.fn();
     renderPicker({ serviceTierValue: current, onServiceTierChange });
     fireEvent.click(screen.getByRole("button", { name: "Provider and model" }));
-    fireEvent.keyDown(await screen.findByRole("button", { name: "Speed" }), { key: "ArrowDown" });
-    fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(`^${label}`) }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Speed" }), {
+      key: "ArrowDown",
+    });
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: new RegExp(`^${label}`) }),
+    );
     expect(onServiceTierChange).toHaveBeenCalledExactlyOnceWith(next);
   });
 

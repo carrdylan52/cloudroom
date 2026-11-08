@@ -586,8 +586,14 @@ export function useThreadCreationOptions(
     ],
   );
   const serviceTier = useMemo(
-    () => (supportsServiceTier ? rawServiceTier : undefined),
-    [rawServiceTier, supportsServiceTier],
+    () => {
+      if (!supportsServiceTier) return undefined;
+      // Keep the preference so returning to a supporting provider restores it.
+      return rawServiceTier === "ultrafast" && !supportsUltrafast
+        ? "default"
+        : rawServiceTier;
+    },
+    [rawServiceTier, supportsServiceTier, supportsUltrafast],
   );
 
   const permissionMode = resolvePermissionModeSelection({
@@ -622,7 +628,12 @@ export function useThreadCreationOptions(
         storedValues: {
           selectedProviderId: storedProviderId,
           selectedModel: storedSelectedModel,
-          serviceTier: storedServiceTier,
+          // The normalized value still belongs to the stored preference;
+          // otherwise submit metadata would treat Standard as display-only.
+          serviceTier:
+            storedServiceTier === rawServiceTier && serviceTier !== undefined
+              ? serviceTier
+              : storedServiceTier,
           reasoningLevel: storedReasoningLevel,
           permissionMode: storedPermissionMode,
         },
@@ -636,6 +647,7 @@ export function useThreadCreationOptions(
       isUnavailableModelRecovery,
       permissionMode,
       reasoningLevel,
+      rawServiceTier,
       scope,
       selectedModel,
       serviceTier,
