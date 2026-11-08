@@ -36,7 +36,7 @@ jobs:
         run: pnpm exec turbo run build --filter=@cloudroom/server --filter=@cloudroom/host-daemon --filter=@cloudroom/cli --filter=@get-bb/plugin-sdk --concurrency=2
       - run: pnpm --filter bb-app run build:host
       - name: Create a real host artifact with bundled npm and an empty PATH
-        run: node --conditions=source --import tsx ../.ci/windows-bootstrap-package.ts
+        run: node --conditions=source --import tsx ../.ci/windows-bootstrap-package.mts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: windows-host-package
