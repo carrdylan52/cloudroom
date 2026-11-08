@@ -740,6 +740,7 @@ export function ThreadDetailPromptArea({
     supportsServiceTier,
     serviceTierSupportByProvider,
     serviceTierFastLabel,
+    supportsUltrafast,
     executionInputSources,
   } = useThreadCreationOptions({
     enabled: thread.archivedAt === null,
@@ -1537,6 +1538,7 @@ export function ThreadDetailPromptArea({
         supported: supportsServiceTier,
         supportByProvider: serviceTierSupportByProvider,
         fastLabel: serviceTierFastLabel,
+        ultrafastSupported: !isCloud && supportsUltrafast,
       },
       reasoning: {
         value: followUpReasoningLevel,
@@ -1568,8 +1570,10 @@ export function ThreadDetailPromptArea({
       serviceTierSupportByProvider,
       setServiceTier,
       supportsServiceTier,
+      supportsUltrafast,
       serviceTierFastLabel,
       thread.environmentId,
+      isCloud,
     ],
   );
   const compactExecutionConfig = useMemo(() => {

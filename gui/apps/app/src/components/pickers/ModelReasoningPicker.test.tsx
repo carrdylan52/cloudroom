@@ -7,7 +7,7 @@ import {
   render,
   screen,
 } from "@testing-library/react";
-import type { AvailableModel, ReasoningLevel } from "@cloudroom/domain";
+import type { AvailableModel, ReasoningLevel, ServiceTier } from "@cloudroom/domain";
 import type {
   SystemExecutionOptionsModelLoadError,
   SystemExecutionOptionsResponse,
@@ -174,6 +174,8 @@ function renderPicker({
   splitPane = false,
   muted = false,
   onSelectModel,
+  serviceTierValue,
+  onServiceTierChange,
 }: {
   onSelectedProviderChange?: ((value: string) => void) | null;
   onModelChange?: (value: string) => void;
@@ -193,6 +195,8 @@ function renderPicker({
   splitPane?: boolean;
   muted?: boolean;
   onSelectModel?: (selection: ModelReasoningPickerSelection) => void;
+  serviceTierValue?: ServiceTier;
+  onServiceTierChange?: (value: ServiceTier) => void;
 } = {}) {
   const { queryClient, wrapper } = createQueryClientTestHarness();
   queryClient.setQueryData(
@@ -231,7 +235,9 @@ function renderPicker({
         onReasoningChange={onReasoningChange}
         fastModeEnabled={false}
         onFastModeChange={vi.fn()}
-        showFastModeToggle={false}
+        showFastModeToggle={onServiceTierChange !== undefined}
+        serviceTierValue={serviceTierValue}
+        onServiceTierChange={onServiceTierChange}
         muted={muted}
         modal={false}
         onSelectModel={onSelectModel}
@@ -267,6 +273,19 @@ afterEach(() => {
 });
 
 describe("ModelReasoningPicker", () => {
+  it.each([
+    ["default", "Ultrafast", "ultrafast"],
+    ["ultrafast", "Standard", "default"],
+    ["ultrafast", "Fast", "fast"],
+  ] as const)("changes speed from %s to %s", async (current, label, next) => {
+    const onServiceTierChange = vi.fn();
+    renderPicker({ serviceTierValue: current, onServiceTierChange });
+    fireEvent.click(screen.getByRole("button", { name: "Provider and model" }));
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Speed" }), { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(`^${label}`) }));
+    expect(onServiceTierChange).toHaveBeenCalledExactlyOnceWith(next);
+  });
+
   it.each([
     ["ArrowRight", "medium", "high"],
     ["ArrowLeft", "high", "medium"],

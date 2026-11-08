@@ -142,6 +142,7 @@ interface UseThreadCreationOptionsResult<TExecutionInputSources> {
   supportsPermissionModeSelection: boolean;
   permissionModeIsVerified: boolean;
   supportsServiceTier: boolean;
+  supportsUltrafast: boolean;
   serviceTierSupportByProvider: Record<string, boolean>;
   serviceTierFastLabel: string;
   executionInputSources: TExecutionInputSources;
@@ -551,6 +552,9 @@ export function useThreadCreationOptions(
     return supportByProvider;
   }, [providers]);
   const serviceTierFastLabel = fastServiceTierLabel(selectedProviderInfo);
+  const supportsUltrafast = selectedProviderInfo?.serviceTiers?.some(
+    (tier) => tier.id === "ultrafast",
+  ) ?? false;
 
   const {
     selectedModel,
@@ -1003,6 +1007,7 @@ export function useThreadCreationOptions(
     supportsServiceTier,
     serviceTierSupportByProvider,
     serviceTierFastLabel,
+    supportsUltrafast,
     executionInputSources,
   };
 }

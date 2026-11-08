@@ -294,6 +294,25 @@ afterEach(() => {
 });
 
 describe("useThreadCreationOptions", () => {
+  it.each([false, true])("derives Ultrafast support from provider metadata (%s)", async (supported) => {
+    const response = executionOptionsResponse();
+    response.providers = response.providers.map((provider) => ({
+      ...provider,
+      serviceTiers: supported
+        ? [{ id: "ultrafast", label: "Ultrafast" }]
+        : [{ id: "fast", label: "Fast" }],
+    }));
+    vi.mocked(sdk.system.executionOptions).mockResolvedValue(response);
+    const { wrapper } = createQueryClientTestHarness();
+    const { result } = renderHook(() => useThreadCreationOptions({
+      scope: "component-local",
+      initialProviderId: GLOBAL_PROVIDER_ID,
+      initialModel: "global-model",
+    }), { wrapper });
+    await waitFor(() => expect(result.current.modelCatalogIsVerified).toBe(true));
+    expect(result.current.supportsUltrafast).toBe(supported);
+  });
+
   it("keeps the selected remembered provider branded while models load", () => {
     window.localStorage.setItem("bb.promptbox.provider", "codex");
     writeCachedProviderList(
