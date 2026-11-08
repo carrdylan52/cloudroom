@@ -60,7 +60,9 @@ try {
   const serverUrl = `http://127.0.0.1:${server.address().port}`;
   const bootstrap = JSON.stringify({ hostId, serverUrl, credential: 'ci_enrollment_fixture', expiresAt: Date.now() + 60_000 });
   await new Promise((resolve, reject) => {
-    const child = execFile(cli, ['machine', 'enroll', '--bootstrap-file', '/dev/stdin'], { env, timeout: 30_000 }, (error, stdout, stderr) => {
+    // Match the installer's shell pipe. Node child stdin is a Unix socket,
+    // which cannot be reopened via /dev/stdin on Linux.
+    const child = execFile('/bin/sh', ['-c', 'cat | "$1" machine enroll --bootstrap-file /dev/stdin', 'cloudroom-bootstrap-ci', cli], { env, timeout: 30_000 }, (error, stdout, stderr) => {
       if (error) reject(new Error(`CLI enrollment failed: ${stderr}`, { cause: error }));
       else { console.log(stdout); resolve(); }
     });
