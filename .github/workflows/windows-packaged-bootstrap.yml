@@ -1,0 +1,117 @@
+name: Packaged Windows bootstrap comparison
+
+on:
+  push:
+    branches: [test/windows-packaged-bootstrap]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  packaged-http:
+    if: github.repository == 'carrdylan52/cloudroom'
+    runs-on: windows-2022
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: stock
+            source: fab648b67f2547023a0cf0bf688fe2763cb6911f
+            expected: 500
+          - variant: patched
+            source: e692dd4e25e8526e4052cdb2c0a9e23c230dd78c
+            expected: 200
+    env:
+      VARIANT: ${{ matrix.variant }}
+      SOURCE_REF: ${{ matrix.source }}
+      EXPECTED_HTTP: ${{ matrix.expected }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      BB_CLOUDROOM_STAMP: '1'
+      CIRCLE_NODE_TOTAL: '2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check disk and select exact v145 source
+        shell: pwsh
+        run: |
+          Get-PSDrive -PSProvider FileSystem | Format-Table Name,Used,Free
+          git fetch --depth=1 origin fab648b67f2547023a0cf0bf688fe2763cb6911f
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git fetch --depth=1 origin e692dd4e25e8526e4052cdb2c0a9e23c230dd78c
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node .ci/select-packaged-source.mjs
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: gui/.nvmrc
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+        with:
+          package_json_file: gui/package.json
+      - name: Install dependencies
+        working-directory: gui
+        run: pnpm install --frozen-lockfile --child-concurrency=2 --network-concurrency=8
+      - name: Build complete desktop runtime
+        working-directory: gui
+        run: pnpm --filter @cloudroom/desktop run prepare-runtime
+      - name: Build Windows desktop shell
+        working-directory: gui/apps/desktop
+        run: node scripts/build.mjs
+      - name: Package unsigned Windows directory and run upstream packaged-npm smoke
+        working-directory: gui/apps/desktop
+        run: node scripts/run-electron-builder.mjs --win --dir --x64 --stamp --publish never
+      - name: Move bundle to a path with spaces
+        shell: pwsh
+        run: |
+          $bundleDir = Join-Path $env:RUNNER_TEMP "Cloudroom PR122 $env:VARIANT v145"
+          Move-Item gui/apps/desktop/release.noindex/win-unpacked $bundleDir
+          "APP_BINARY=$(Join-Path $bundleDir 'Cloudroom.exe')" >> $env:GITHUB_ENV
+      - name: Test real packaged backend HTTP artifact route
+        run: node .ci/packaged-bootstrap-http.mjs
+      - name: Archive portable comparison build
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $bundleDir = Split-Path $env:APP_BINARY
+          $archive = Join-Path (Get-Location) "ci-artifacts/Cloudroom-v145-PR122-$env:VARIANT-unsigned.zip"
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($bundleDir, $archive, [System.IO.Compression.CompressionLevel]::Fastest, $false)
+          $hash = Get-FileHash $archive -Algorithm SHA256
+          "$($hash.Hash.ToLower())  $(Split-Path $archive -Leaf)" | Set-Content ci-artifacts/SHA256SUMS.txt
+          Get-Content ci-artifacts/SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: matrix.variant == 'patched'
+        with:
+          name: packaged-windows-host-runtime
+          path: |
+            ci-artifacts/bb-app.tgz
+            ci-artifacts/windows-package.json
+            ci-artifacts/packaged-http.json
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: packaged-windows-${{ matrix.variant }}
+          path: ci-artifacts/
+          compression-level: 0
+          retention-days: 7
+
+  linux-enrollment:
+    needs: packaged-http
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: gui/.nvmrc
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: packaged-windows-host-runtime
+          path: ci-artifacts/
+      - name: Enroll using the real packaged Windows backend's tarball
+        run: node .ci/linux-bootstrap-enroll.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: packaged-backend-linux-enrollment
+          path: ci-artifacts/linux-enrollment.json
+          retention-days: 7
