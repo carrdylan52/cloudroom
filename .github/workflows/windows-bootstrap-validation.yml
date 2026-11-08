@@ -28,6 +28,8 @@ jobs:
         run: pnpm install --frozen-lockfile --child-concurrency=2 --network-concurrency=8
       - name: Native Windows artifact regression tests
         run: pnpm --filter @cloudroom/server exec vitest run test/app/bb-app-artifact.test.ts --maxWorkers=2
+      - name: Native Windows updater regression tests
+        run: pnpm --filter @cloudroom/host-daemon exec vitest run src/protocol-self-update.test.ts --maxWorkers=2
       - name: Native Windows bundled CLI regression test
         run: pnpm --filter bb-app exec vitest run test/index.test.ts --testNamePattern "runs the bundled room-cli when ROOM_CLI is unset" --maxWorkers=2
       - name: Typecheck affected packages
