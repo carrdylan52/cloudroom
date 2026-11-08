@@ -30,6 +30,10 @@ const runtime = JSON.parse((await exec(binary, ['-e', probe], {
 })).stdout);
 assert.ok(runtime.electron);
 assert.match(runtime.npmPath, /app\.asar[\\/]node_modules[\\/]npm/);
+const legacySpawn = JSON.parse((await exec(binary, ['-e', `
+require('node:child_process').execFile('npm',['--version'],(error,stdout)=>console.log(JSON.stringify({code:error?.code,message:error?.message,stdout})));
+`], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 30_000 })).stdout);
+assert.equal(legacySpawn.code, 'ENOENT');
 
 async function freePort() {
   const server = createServer();
@@ -96,7 +100,14 @@ for (const emptyPath of expected === 200 ? [false, true] : [false]) {
     assert.equal(response.status, expected, bytes.toString('utf8').slice(0, 1000));
     const attempt = { emptyPath, httpStatus: response.status, version };
     if (expected === 500) {
-      const logs = Buffer.concat([...stdout, ...stderr]).toString('utf8') + await logsUnder(join(dataDir, 'logs'));
+      // Pino's worker transport flushes after the HTTP error response.
+      const diagnosticDeadline = Date.now() + 10_000;
+      let logs;
+      do {
+        logs = Buffer.concat([...stdout, ...stderr]).toString('utf8') + await logsUnder(join(dataDir, 'logs'));
+        if (/spawn npm ENOENT/.test(logs)) break;
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } while (Date.now() < diagnosticDeadline);
       assert.match(logs + bytes.toString('utf8'), /spawn npm ENOENT/);
       attempt.failure = 'spawn npm ENOENT';
     } else {
@@ -120,7 +131,7 @@ for (const emptyPath of expected === 200 ? [false, true] : [false]) {
     await writeFile(join(output, `backend-${emptyPath ? 'empty' : 'normal'}-server.log`), await logsUnder(join(dataDir, 'logs')));
   }
 }
-const receipt = { passed: true, variant, sourceCommit: process.env.SOURCE_REF, runtime, attempts, localhostOnly: true, isolatedProfiles: true };
+const receipt = { passed: true, variant, sourceCommit: process.env.SOURCE_REF, runtime, legacySpawn, attempts, localhostOnly: true, isolatedProfiles: true };
 await writeFile(join(output, 'packaged-http.json'), JSON.stringify(receipt, null, 2) + '\n');
 await writeFile(join(dirname(binary), 'PR122-BUILD-INFO.txt'), `Unsigned test build: ${variant} v145\nSource: ${process.env.SOURCE_REF}\nPR: https://github.com/davidondrej/cloudroom/pull/122\nDo not overwrite an installed app with this directory. Preserve the existing Cloudroom profile and machine installation before a live enrollment comparison.\n`);
 console.log(JSON.stringify(receipt));

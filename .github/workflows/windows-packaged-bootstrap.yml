@@ -59,6 +59,9 @@ jobs:
       - name: Package unsigned Windows directory and run upstream packaged-npm smoke
         working-directory: gui/apps/desktop
         run: node scripts/run-electron-builder.mjs --win --dir --x64 --stamp --publish never
+      - name: Run upstream packaged desktop preload and version smoke
+        working-directory: gui/apps/desktop
+        run: node scripts/smoke-packaged-app.mjs
       - name: Move bundle to a path with spaces
         shell: pwsh
         run: |
