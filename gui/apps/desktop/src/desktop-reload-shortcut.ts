@@ -13,14 +13,14 @@ type DesktopReloadShortcut = "reload" | "force-reload";
 
 export function resolveDesktopReloadShortcut(
   input: DesktopReloadShortcutInput,
-  isMac: boolean,
 ): DesktopReloadShortcut | null {
   if (
     input.type !== "keyDown" ||
     input.isAutoRepeat ||
     input.isComposing ||
     input.alt ||
-    (isMac ? input.control || !input.meta : input.meta || !input.control) ||
+    input.control ||
+    !input.meta ||
     input.key.toLowerCase() !== "r"
   ) {
     return null;

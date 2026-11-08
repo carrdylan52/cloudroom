@@ -583,10 +583,7 @@ function registerApplicationRendererReloadShortcut(
   webContents: WebContents,
 ): void {
   webContents.on("before-input-event", (event, input) => {
-    const shortcut = resolveDesktopReloadShortcut(
-      input,
-      process.platform === "darwin",
-    );
+    const shortcut = resolveDesktopReloadShortcut(input);
     if (shortcut === null) {
       return;
     }
