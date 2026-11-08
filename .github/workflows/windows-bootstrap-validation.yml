@@ -1,0 +1,66 @@
+name: Windows host bootstrap validation
+
+on:
+  push:
+    branches: [test/windows-host-bootstrap]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-package:
+    if: github.repository == 'carrdylan52/cloudroom'
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: gui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: gui/.nvmrc
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+        with:
+          package_json_file: gui/package.json
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --child-concurrency=2 --network-concurrency=8
+      - name: Native Windows artifact regression tests
+        run: pnpm --filter @cloudroom/server exec vitest run test/app/bb-app-artifact.test.ts --maxWorkers=2
+      - name: Native Windows bundled CLI regression test
+        run: pnpm --filter bb-app exec vitest run test/index.test.ts --testNamePattern "runs the bundled room-cli when ROOM_CLI is unset" --maxWorkers=2
+      - name: Typecheck affected packages
+        run: pnpm exec turbo run typecheck --filter=@cloudroom/server --filter=@cloudroom/host-daemon --filter=bb-app --concurrency=2
+      - name: Build host runtime
+        run: pnpm exec turbo run build --filter=@cloudroom/server --filter=@cloudroom/host-daemon --filter=@cloudroom/cli --filter=@get-bb/plugin-sdk --concurrency=2
+      - run: pnpm --filter bb-app run build:host
+      - name: Create a real host artifact with bundled npm and an empty PATH
+        run: node --conditions=source --import tsx ../.ci/windows-bootstrap-package.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: windows-host-package
+          path: ci-artifacts/
+          retention-days: 7
+
+  linux-enrollment:
+    needs: windows-package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: gui/.nvmrc
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: windows-host-package
+          path: ci-artifacts/
+      - name: Install the Windows-built package and exercise real CLI enrollment
+        run: node .ci/linux-bootstrap-enroll.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: cross-platform-enrollment-receipt
+          path: ci-artifacts/linux-enrollment.json
+          retention-days: 7
