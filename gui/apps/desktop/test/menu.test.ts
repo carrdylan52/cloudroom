@@ -268,13 +268,50 @@ describe("application menu", () => {
         ?.accelerator,
     ).toBe("Control+Shift+I");
     expect(
-      viewSubmenu.find((item) => item.role === "zoomOut" && item.visible === false)
-        ?.accelerator,
+      viewSubmenu.find(
+        (item) => item.role === "zoomOut" && item.visible === false,
+      )?.accelerator,
     ).toBe("CommandOrControl+numsub");
 
     closeWindow?.click?.({} as never, null as never, {} as never);
     expect(Menu.sendActionToFirstResponder).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { platform: "Windows", isLinux: false, isMac: false },
+    { platform: "Linux", isLinux: true, isMac: false },
+    { platform: "macOS", isLinux: false, isMac: true },
+  ])(
+    "registers extra zoom shortcuts only outside macOS ($platform)",
+    ({ isLinux, isMac }) => {
+      const template = buildApplicationMenuTemplate(
+        menuArgs(() => {}, { isLinux, isMac }),
+      );
+      const submenu = template.find((item) => item.label === "View")
+        ?.submenu as MenuItemConstructorOptions[];
+
+      for (const [role, accelerator] of [
+        ["zoomIn", "CommandOrControl+="],
+        ["zoomIn", "CommandOrControl+numadd"],
+        ["zoomOut", "CommandOrControl+numsub"],
+        ["resetZoom", "CommandOrControl+num0"],
+      ]) {
+        expect(
+          submenu.some(
+            (item) =>
+              item.role === role &&
+              item.accelerator === accelerator &&
+              item.visible === false,
+          ),
+        ).toBe(!isMac);
+      }
+      expect(
+        submenu.some(
+          (item) => item.role === "zoomIn" && item.accelerator === undefined,
+        ),
+      ).toBe(true);
+    },
+  );
 
   it.each([
     { platform: "Windows", isLinux: false, isMac: false, fullScreen: true },
@@ -288,9 +325,9 @@ describe("application menu", () => {
       );
       const viewSubmenu = template.find((item) => item.label === "View")
         ?.submenu as MenuItemConstructorOptions[];
-      expect(
-        viewSubmenu.some((item) => item.role === "togglefullscreen"),
-      ).toBe(fullScreen);
+      expect(viewSubmenu.some((item) => item.role === "togglefullscreen")).toBe(
+        fullScreen,
+      );
     },
   );
 });

@@ -1169,11 +1169,17 @@ function hookProblemWarning(
     return null;
   }
   const entries: unknown[] = Array.isArray(run.entries) ? run.entries : [];
+  // A progress label ("Checking UI changes") isn't the reason a hook failed.
   const reason = [
-    getStringProperty(run, "statusMessage"),
+    ...entries.map((entry) =>
+      isRecord(entry) && entry.kind === "error"
+        ? getStringProperty(entry, "text")
+        : undefined,
+    ),
     ...entries.map((entry) =>
       isRecord(entry) ? getStringProperty(entry, "text") : undefined,
     ),
+    getStringProperty(run, "statusMessage"),
   ]
     .map((text) => text?.trim())
     .find(Boolean);
@@ -1205,7 +1211,10 @@ export function translateCodexEventToDeltas(
 
   if (envelope.data.method === "hook/completed") {
     const reason = commandGuardBlockReason(envelope.data.params);
-    if (reason) return [{ kind: "provider.warning", category: "general", summary: reason }];
+    if (reason)
+      return [
+        { kind: "provider.warning", category: "general", summary: reason },
+      ];
     const problem = hookProblemWarning(envelope.data.params);
     if (problem) return [problem];
   }

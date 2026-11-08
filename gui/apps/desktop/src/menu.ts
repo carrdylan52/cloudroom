@@ -23,9 +23,9 @@ const TOGGLE_DEVELOPER_TOOLS_MENU_LABEL = "Toggle Developer Tools";
 const TOGGLE_DEVELOPER_TOOLS_ACCELERATOR = "Command+Option+I";
 const RELOAD_ACCELERATOR = "CommandOrControl+R";
 const FORCE_RELOAD_ACCELERATOR = "CommandOrControl+Shift+R";
-// Electron gives each zoom role one key. On Linux, Ctrl+=, numpad −, and
+// Electron gives each zoom role one key. On Windows and Linux, Ctrl+=, numpad −, and
 // numpad 0 don't match it, so add them as hidden duplicates.
-const LINUX_EXTRA_ZOOM_ITEMS: MenuItemConstructorOptions[] = [
+const EXTRA_ZOOM_ITEMS: MenuItemConstructorOptions[] = [
   { role: "zoomIn", accelerator: "CommandOrControl+=", visible: false },
   { role: "zoomIn", accelerator: "CommandOrControl+numadd", visible: false },
   { role: "zoomOut", accelerator: "CommandOrControl+numsub", visible: false },
@@ -264,7 +264,7 @@ export function buildApplicationMenuTemplate(
         { role: "resetZoom" },
         { role: "zoomIn" },
         { role: "zoomOut" },
-        ...(args.isLinux ? LINUX_EXTRA_ZOOM_ITEMS : []),
+        ...(args.isMac ? [] : EXTRA_ZOOM_ITEMS),
         ...(args.isMac || args.isLinux
           ? []
           : [

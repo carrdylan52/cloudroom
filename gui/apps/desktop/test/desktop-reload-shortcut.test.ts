@@ -18,23 +18,42 @@ function input(
 }
 
 describe("resolveDesktopReloadShortcut", () => {
+  it("maps Ctrl+R and Ctrl+Shift+R on Windows and Linux", () => {
+    const controlR = input({ control: true, meta: false });
+    expect(resolveDesktopReloadShortcut(controlR, false)).toBe("reload");
+    expect(
+      resolveDesktopReloadShortcut({ ...controlR, shift: true }, false),
+    ).toBe("force-reload");
+  });
+
   it("maps Cmd+R and Cmd+Shift+R to reload actions", () => {
-    expect(resolveDesktopReloadShortcut(input())).toBe("reload");
-    expect(resolveDesktopReloadShortcut(input({ shift: true }))).toBe(
+    expect(resolveDesktopReloadShortcut(input(), true)).toBe("reload");
+    expect(resolveDesktopReloadShortcut(input({ shift: true }), true)).toBe(
       "force-reload",
     );
   });
 
-  it("ignores unrelated, repeated, and composing input", () => {
-    expect(resolveDesktopReloadShortcut(input({ key: "x" }))).toBeNull();
-    expect(resolveDesktopReloadShortcut(input({ meta: false }))).toBeNull();
-    expect(resolveDesktopReloadShortcut(input({ alt: true }))).toBeNull();
-    expect(
-      resolveDesktopReloadShortcut(input({ isAutoRepeat: true })),
-    ).toBeNull();
-    expect(
-      resolveDesktopReloadShortcut(input({ isComposing: true })),
-    ).toBeNull();
-    expect(resolveDesktopReloadShortcut(input({ type: "keyUp" }))).toBeNull();
-  });
+  it.each([true, false])(
+    "ignores unrelated, repeated, composing, and wrong modifiers (isMac: %s)",
+    (isMac) => {
+      const chord = { control: !isMac, meta: isMac };
+      for (const overrides of [
+        { key: "x" },
+        { control: false, meta: false },
+        { control: isMac, meta: !isMac },
+        { control: true, meta: true },
+        { alt: true },
+        { isAutoRepeat: true },
+        { isComposing: true },
+        { type: "keyUp" },
+      ]) {
+        expect(
+          resolveDesktopReloadShortcut(
+            input({ ...chord, ...overrides }),
+            isMac,
+          ),
+        ).toBeNull();
+      }
+    },
+  );
 });

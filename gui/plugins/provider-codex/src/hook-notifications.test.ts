@@ -19,6 +19,70 @@ function createHarness() {
 }
 
 describe("Codex lifecycle notification diagnostics", () => {
+  it.each([
+    {
+      method: "item/reasoning/summaryPartAdded",
+      params: {
+        threadId: "thread-test",
+        turnId: "turn-test",
+        itemId: "reasoning-test",
+        summaryIndex: 0,
+      },
+    },
+    {
+      method: "thread/readState/changed",
+      params: {
+        threadId: "thread-test",
+        readState: {
+          firstUnread: { type: "turn", turnId: "turn-test" },
+          revision: "revision-test",
+        },
+      },
+    },
+    {
+      method: "thread/readState/changed",
+      params: {
+        threadId: "thread-test",
+        readState: { firstUnread: null, revision: "revision-test" },
+      },
+    },
+  ])("suppresses routine $method notifications", ({ method, params }) => {
+    const translate = createHarness();
+    expect(translate(method, params)).toEqual([]);
+  });
+
+  it("keeps streaming reasoning text after a summary part is added", () => {
+    const translator = createCodexEventTranslator({
+      additionalWorkspaceWriteRoots: [],
+    });
+    const params = {
+      threadId: "thread-test",
+      turnId: "turn-test",
+      itemId: "reasoning-test",
+      summaryIndex: 0,
+    };
+    expect(
+      translator.translateEvent({
+        jsonrpc: "2.0",
+        method: "item/reasoning/summaryPartAdded",
+        params,
+      }),
+    ).toEqual([]);
+    expect(
+      translator.translateEvent({
+        jsonrpc: "2.0",
+        method: "item/reasoning/summaryTextDelta",
+        params: { ...params, delta: "Checking Windows shortcuts" },
+      }),
+    ).toContainEqual(
+      expect.objectContaining({
+        kind: "item.textDelta",
+        channel: "reasoningSummary",
+        text: "Checking Windows shortcuts",
+      }),
+    );
+  });
+
   it.each(["hook/started", "hook/completed"])(
     "suppresses routine %s notifications",
     (method) => {
@@ -100,12 +164,63 @@ describe("Codex lifecycle notification diagnostics", () => {
     ).toEqual([]);
   });
 
-  it("preserves unknown notifications as diagnostics", () => {
+  it("puts the hook error before its progress label on Windows", () => {
     const translate = createHarness();
-    expect(translate("future/notification", { value: 1 })).toEqual([
+    expect(
+      translate("hook/completed", {
+        run: {
+          status: "failed",
+          eventName: "postToolUse",
+          sourcePath: "C:\\Users\\test\\.codex\\hooks.json",
+          statusMessage: "Checking UI changes",
+          entries: [
+            { kind: "feedback", text: "Starting UI check" },
+            {
+              kind: "error",
+              text: "Missing type name after '['.\nParserError",
+            },
+          ],
+        },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        type: "provider/warning",
+        summary:
+          "postToolUse hook in hooks.json failed: Missing type name after '['.",
+      }),
+    ]);
+  });
+
+  it("keeps the hook progress label when no error detail is available", () => {
+    const translate = createHarness();
+    expect(
+      translate("hook/completed", {
+        run: {
+          status: "failed",
+          eventName: "stop",
+          sourcePath: "C:\\Users\\test\\.codex\\hooks.json",
+          statusMessage: "Design deep pass",
+          entries: [{ kind: "error", text: "  " }],
+        },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        type: "provider/warning",
+        summary: "stop hook in hooks.json failed: Design deep pass",
+      }),
+    ]);
+  });
+
+  it.each([
+    "future/notification",
+    "item/reasoning/future",
+    "thread/readState/future",
+  ])("preserves unknown %s notifications as diagnostics", (method) => {
+    const translate = createHarness();
+    expect(translate(method, { value: 1 })).toEqual([
       expect.objectContaining({
         type: "provider/unhandled",
-        rawType: "future/notification",
+        rawType: method,
       }),
     ]);
   });
